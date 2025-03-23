@@ -1,54 +1,65 @@
 pipeline {
     agent any
 
-    environment {
-        APP_NAME = "react-app"
-    }
-
     stages {
-        stage('Checkout Code') {
+        stage('Clean Workspace') {
             steps {
-                git 'https://github.com/kaviyasrinivasan/devops-project.git'  // Update with your repo URL
+                echo 'Cleaning workspace...'
+                deleteDir()
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Git Checkout') {
             steps {
-                sh 'npm install'
+                script {
+                    echo 'Checking out the latest code from GitHub...'
+                    git branch: 'main', url: 'https://github.com/kaviyasrinivasan/devops_project.git'
+                }
             }
         }
 
-        stage('Build React App') {
+        stage('Install Node') {
             steps {
-                sh 'npm run build'
+                script {
+                    echo "Checking for package.json in the root directory..."
+                    sh 'ls -la'  // Debugging step: Show files
+
+                    if (fileExists('package.json')) {  // ✅ Correct location
+                        sh 'npm install'
+                    } else {
+                        error 'ERROR: package.json is missing. Stopping pipeline.'
+                    }
+                }
             }
         }
 
-        stage('Run Tests') {
+        stage('Build & Test') {
             steps {
-                sh 'npm test'
+                echo 'Running tests...'
+                sh 'npm test' // Ensure test scripts are defined in package.json
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t ${APP_NAME}:latest .'
+                script {
+                    echo 'Building Docker image...'
+                    sh 'docker build -t myapp:latest .'
+                    
+                    echo 'Pushing Docker image to registry...'
+                    sh 'docker tag myapp:latest mydockerhubusername/myapp:latest'
+                    sh 'docker push mydockerhubusername/myapp:latest'
+                }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy Docker Container') {
             steps {
-                sh 'docker run -d -p 80:80 --name ${APP_NAME} ${APP_NAME}:latest'
+                script {
+                    echo 'Deploying Docker container...'
+                    sh 'docker run -d -p 3000:3000 --name myapp_container mydockerhubusername/myapp:latest'
+                }
             }
-        }
-    }
-
-    post {
-        success {
-            echo 'Build and deployment successful!'
-        }
-        failure {
-            echo 'Build failed! Check logs for errors.'
         }
     }
 }
